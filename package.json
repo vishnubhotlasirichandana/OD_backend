@@ -1,0 +1,37 @@
+{
+  "name": "on-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "create-admin": "node src/scripts/createSuperAdmin.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cloudinary": "^2.2.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.3.1",
+    "jsonwebtoken": "^9.0.2",
+    "lodash": "^4.17.21",
+    "mongoose": "^8.5.1",
+    "multer": "^2.0.2",
+    "nodemailer": "^6.9.14",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "streamifier": "^0.1.1",
+    "stripe": "^18.5.0",
+    "uuid": "^9.0.1",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
