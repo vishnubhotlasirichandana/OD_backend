@@ -67,6 +67,11 @@ const generalApiLimiter = rateLimit({
     legacyHeaders: false,
     message: 'Too many requests from this IP, please try again after 15 minutes.',
 });
+app.use((req, res, next) => {
+  console.log("HIT:", req.method, req.originalUrl);
+  next();
+});
+
 
 // --- API Routes ---
 app.use('/api/auth', authLimiter, authRoutes);
