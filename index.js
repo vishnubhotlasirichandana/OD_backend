@@ -1,3 +1,7 @@
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", env: process.env.NODE_ENV });
+});
+
 // index.js
 import express from "express";
 import cors from 'cors';
