@@ -46,12 +46,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use(
-  cors({
-    origin: config.corsOrigin,
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: [
+    "http://localhost:5173",                  
+    "https://ordernow-super-admin.vercel.app" 
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+}));
 
 app.use(passport.initialize());
 

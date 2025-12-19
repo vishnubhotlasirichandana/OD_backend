@@ -122,11 +122,10 @@ export const verifyOTP = async (req, res, next) => {
     const token = generateJWT(user);
     res.cookie("token", token, {
       httpOnly: true,
-      secure: config.nodeEnv === "production",
-      sameSite: "Strict",
-      maxAge: 2 * 60 * 60 * 1000,
-    });
-    
+      secure: true,      
+      sameSite: "None", 
+      maxAge: 12 * 60 * 60 * 1000,
+});
     const userResponse = {
         _id: user._id,
         fullName: user.fullName,
