@@ -125,7 +125,8 @@ export const verifyOTP = async (req, res, next) => {
       secure: true,      
       sameSite: "None", 
       maxAge: 12 * 60 * 60 * 1000,
-});
+    });
+    
     const userResponse = {
         _id: user._id,
         fullName: user.fullName,
@@ -171,10 +172,12 @@ export const loginSuperAdmin = async (req, res, next) => {
     }
 
     const token = generateJWT(admin);
+    
+    // ✅ FIXED COOKIE SETTINGS FOR VERCEL + RENDER
     res.cookie("token", token, {
       httpOnly: true,
-      secure: config.nodeEnv === "production",
-      sameSite: "Strict",
+      secure: true,      // Must be true for Cross-Site
+      sameSite: "None",  // Must be None for Cross-Site
       maxAge: 12 * 60 * 60 * 1000,
     });
 
