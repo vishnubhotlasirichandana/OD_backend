@@ -114,3 +114,43 @@ export const sendOTPEmail = async (email, otp) => {
     throw new Error('Email could not be sent.');
   }
 };
+
+export const sendRejectionEmail = async (email, restaurantName, reason) => {
+  const htmlContent = `
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Application Update</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; background-color: #f9f9f9; }
+      .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+      h2 { color: #e74c3c; }
+      p { line-height: 1.5; color: #333; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Application Rejected</h2>
+      <p>Dear ${restaurantName},</p>
+      <p>We regret to inform you that your application to join OrderNow has been rejected.</p>
+      <p><strong>Reason:</strong> ${reason}</p>
+      <p>Your application data has been removed from our system. You are welcome to address the issues mentioned above and apply again.</p>
+    </div>
+  </body>
+  </html>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: config.email.user,
+      to: email,
+      subject: 'Update on your OrderNow Application',
+      html: htmlContent,
+    });
+    logger.info(`Rejection email sent to ${email}`);
+  } catch (error) {
+    logger.error('Failed to send rejection email', { email, error: error.message });
+    // We don't throw here to ensure the deletion process in the controller continues
+  }
+};

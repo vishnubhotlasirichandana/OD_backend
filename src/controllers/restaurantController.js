@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import Restaurant from "../models/Restaurant.js";
 import RestaurantDocuments from "../models/RestaurantDocuments.js";
+import MenuItem from "../models/MenuItem.js"; // <-- Imported
+import Category from "../models/Category.js"; // <-- Imported
 import { getPaginationParams } from "../utils/paginationUtils.js";
 import logger from "../utils/logger.js";
 
@@ -11,22 +13,49 @@ import logger from "../utils/logger.js";
  */
 export const getRestaurants = async (req, res, next) => {
     try {
-        const { type, search, acceptsDining } = req.query;
+        const { type, search, dishSearch, acceptsDining } = req.query;
         const { page, limit, skip } = getPaginationParams(req.query); 
 
         const pipeline = [];
 
         // Stage 1: Match active restaurants
         const matchStage = { isActive: true };
+        
         if (type && ['food_delivery_and_dining', 'groceries', 'food_delivery'].includes(type)) {
             matchStage.restaurantType = type;
         }
+
+        // Search by Restaurant Name (Navbar Search)
         if (search) {
             matchStage.restaurantName = { $regex: search, $options: 'i' };
         }
+
+        // Search by Dish or Category (In-Page Search)
+        if (dishSearch) {
+            // 1. Find Categories matching the search term
+            const matchingCategories = await Category.find({
+                categoryName: { $regex: dishSearch, $options: 'i' }
+            }).select('_id');
+            const categoryIds = matchingCategories.map(c => c._id);
+
+            // 2. Find MenuItems matching the name OR the category
+            const matchingMenuItems = await MenuItem.find({
+                $or: [
+                    { itemName: { $regex: dishSearch, $options: 'i' } },
+                    { categories: { $in: categoryIds } }
+                ]
+            }).select('restaurantId');
+
+            const restaurantIds = matchingMenuItems.map(m => m.restaurantId);
+
+            // 3. Filter restaurants to only those containing these items
+            matchStage._id = { $in: restaurantIds };
+        }
+
         if (acceptsDining === 'true') {
             matchStage.acceptsDining = true;
         }
+        
         pipeline.push({ $match: matchStage });
 
         // Stage 2: Lookup to join with restaurantdocuments and filter for approved ones

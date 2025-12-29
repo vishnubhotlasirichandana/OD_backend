@@ -140,7 +140,6 @@ export const updateMenuItem = async (req, res, next) => {
       const updates = {};
       const body = req.body;
 
-      // --- FIX: Added itemName, isFood, itemType, and quantities to allowed updates ---
       const simpleFields = [
         'itemName', 
         'description', 
@@ -156,7 +155,6 @@ export const updateMenuItem = async (req, res, next) => {
       simpleFields.forEach(field => {
           if (body[field] !== undefined) {
               const isBooleanField = ['isBestseller', 'isAvailable', 'isFood'].includes(field);
-              // Handle both boolean types and string representations from FormData
               if (isBooleanField) {
                   updates[field] = (body[field] === true || body[field] === 'true');
               } else {
@@ -200,12 +198,6 @@ export const updateMenuItem = async (req, res, next) => {
                 updates.imagePublicIds = galleryImages.map(img => img.public_id);
               }
           }
-      }
-      
-      if (Object.keys(updates).length === 0 && !req.files) {
-          // If no updates were prepared, we don't throw error, just return current item to avoid frontend confusion
-          // But throwing error helps debugging. Let's keep it but ensure frontend sends data.
-          // For now, let's allow "no-op" saves to just return success.
       }
 
       Object.assign(menuItem, updates);
@@ -326,9 +318,27 @@ export const getMenuByRestaurantId = async (req, res, next) => {
     }
 };
 
+// UPDATED: Filter categories by food items for the "What's on your mind?" section
 export const getAllCategories = async (req, res, next) => {
     try {
-        const categories = await Category.find({}).sort({ categoryName: 1 });
+        const { onlyFood } = req.query;
+        let query = { isActive: true };
+
+        // If 'onlyFood' param is present, filter categories
+        if (onlyFood !== undefined) {
+             const isFoodBool = onlyFood === 'true';
+             
+             // Find Categories that have at least one active item of the requested type (Food or Grocery)
+             const distinctCategoryIds = await MenuItem.distinct('categories', { 
+                 isFood: isFoodBool,
+                 isAvailable: true 
+             });
+             
+             query._id = { $in: distinctCategoryIds };
+        }
+
+        const categories = await Category.find(query).sort({ categoryName: 1 });
+        
         res.status(200).json({
             success: true,
             count: categories.length,

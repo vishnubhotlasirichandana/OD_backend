@@ -101,18 +101,7 @@ const startServer = async () => {
   try {
     await connectDB();
     
-    // --- TEMPORARY INDEX FIX ---
-    // This runs once to delete the old index, then you can remove it.
-    try {
-        await User.collection.dropIndex("email_1");
-        console.log("✅ SUCCESS: Old 'email_1' index dropped. You can now restart.");
-    } catch (error) {
-        // If it says "index not found", that's GOOD. It means it's already gone.
-        console.log("ℹ️ Index status:", error.message);
-    }
-    // ---------------------------
-
-    await createSuperAdmin();
+    // await createSuperAdmin();
     
     app.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`);

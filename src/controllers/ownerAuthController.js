@@ -14,6 +14,7 @@ export const requestOwnerOTP = async (req, res, next) => {
     }
 
     const otp = generateOTP();
+    // We only update OTP fields, preserving isEmailVerified status
     const owner = await Restaurant.findOneAndUpdate(
       { email },
       {
@@ -24,8 +25,6 @@ export const requestOwnerOTP = async (req, res, next) => {
     );
 
     if (!owner) {
-      // To prevent email enumeration, we still return a success-like response.
-      // The email will not be sent, but the client-side experience is the same.
       logger.warn(`OTP request for non-existent owner email: ${email}. No OTP was sent.`);
       return res.status(200).json({ message: "If a matching account exists, an OTP has been sent to the owner's email." });
     }
@@ -46,12 +45,18 @@ export const verifyOwnerOTP = async (req, res, next) => {
       return res.status(400).json({ message: "Email and OTP are required." });
     }
 
-    const owner = await Restaurant.findOne({ email }).select('+currentOTP');
+    // EXPLICITLY select isEmailVerified to ensure it is available
+    const owner = await Restaurant.findOne({ email }).select('+currentOTP +isEmailVerified');
 
-    // UNIFIED FAILURE RESPONSE:
-    // If there's no owner OR the OTP is incorrect, return the same generic message.
-    if (!owner || owner.currentOTP !== otp.trim()) {
-      logger.warn("Invalid OTP or user for owner verification", { email });
+    if (!owner) {
+        return res.status(400).json({ message: "Invalid email or OTP." });
+    }
+
+    // DEBUG LOG: Check your server console to see this value when you try to login
+    logger.info(`Owner Login Attempt for ${email} | Verified Status: ${owner.isEmailVerified}`);
+
+    if (owner.currentOTP !== otp.trim()) {
+      logger.warn("Invalid OTP for owner verification", { email });
       return res.status(400).json({ message: "Invalid email or OTP." });
     }
 
@@ -59,14 +64,22 @@ export const verifyOwnerOTP = async (req, res, next) => {
       return res.status(400).json({ message: "OTP expired." });
     }
 
-    // OTP is verified, now this acts as a login
+    // STRICT CHECK: If it is ANYTHING other than true (false, null, undefined), block login
+    if (owner.isEmailVerified !== true) {
+       logger.warn("Owner login blocked: Account not approved", { email });
+       return res.status(403).json({ 
+           error_code: 'APPROVAL_PENDING',
+           message: "Your account is waiting for Super Admin approval." 
+       });
+    }
+
+    // If we pass here, the user is verified. Clear OTP and login.
     await Restaurant.updateOne(
       { _id: owner._id },
-      { $set: { isEmailVerified: true, currentOTP: null } }
+      { $set: { currentOTP: null } }
     );
     
-    // The entity being passed to generateJWT is the owner (Restaurant document)
-    const token = generateJWT(owner, true); // Pass a flag to indicate this is an owner
+    const token = generateJWT(owner, true);
 
     res.cookie("token", token, {
       httpOnly: true,

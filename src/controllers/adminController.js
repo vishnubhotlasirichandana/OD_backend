@@ -1,8 +1,11 @@
 import mongoose from "mongoose";
 import Restaurant from "../models/Restaurant.js";
 import RestaurantDocuments from "../models/RestaurantDocuments.js";
-import User from "../models/User.js"; // <-- NEW IMPORT
+import RestaurantMedia from "../models/RestaurantMedia.js";
+import RestaurantTimings from "../models/RestaurantTimings.js";
+import User from "../models/User.js"; 
 import logger from "../utils/logger.js";
+import { sendRejectionEmail } from "../utils/MailUtils.js";
 import { getPaginationParams } from "../utils/paginationUtils.js";
 
 /**
@@ -104,6 +107,9 @@ export const getRestaurantDetailsForAdmin = async (req, res, next) => {
  * @access Private (Super Admin)
  */
 export const verifyRestaurant = async (req, res, next) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
         const restaurantId  = req.params.restaurantId;
         const { verificationStatus, remarks } = req.body;
@@ -115,32 +121,56 @@ export const verifyRestaurant = async (req, res, next) => {
             return res.status(400).json({ success: false, message: "Invalid verification status. Must be 'approved' or 'rejected'." });
         }
 
-        const restaurantDoc = await RestaurantDocuments.findOne({ restaurantId });
-        if (!restaurantDoc) {
-            return res.status(404).json({ success: false, message: "Restaurant documents not found for this establishment." });
+        const restaurant = await Restaurant.findById(restaurantId).session(session);
+        const restaurantDoc = await RestaurantDocuments.findOne({ restaurantId }).session(session);
+
+        if (!restaurant || !restaurantDoc) {
+            throw new Error("Restaurant or documents not found.");
         }
 
-        restaurantDoc.verificationStatus = verificationStatus;
-        if (remarks) {
-            restaurantDoc.remarks = remarks;
+        if (verificationStatus === 'rejected') {
+            // REJECTION FLOW:
+            // 1. Send Email
+            await sendRejectionEmail(restaurant.email, restaurant.restaurantName, remarks || "Criteria not met.");
+            
+            // 2. Delete All Related Data
+            await RestaurantDocuments.deleteOne({ restaurantId }).session(session);
+            await RestaurantMedia.deleteMany({ restaurantId }).session(session);
+            await RestaurantTimings.deleteOne({ restaurantId }).session(session);
+            await Restaurant.deleteOne({ _id: restaurantId }).session(session);
+            
+            await session.commitTransaction();
+            return res.status(200).json({ 
+                success: true, 
+                message: "Application rejected. Rejection email sent and data deleted." 
+            });
+        } else {
+            // APPROVAL FLOW:
+            restaurantDoc.verificationStatus = 'approved';
+            if (remarks) {
+                restaurantDoc.remarks = remarks;
+            }
+
+            // Set isEmailVerified to true (allows login) and isActive to true (allows business)
+            restaurant.isEmailVerified = true;
+            restaurant.isActive = true;
+
+            await restaurantDoc.save({ session });
+            await restaurant.save({ session });
+
+            await session.commitTransaction();
+            return res.status(200).json({
+                success: true,
+                message: "Restaurant has been approved and activated.",
+                data: restaurantDoc,
+            });
         }
-
-        // If approved, also set the restaurant to active by default. Owner can change this later.
-        if (verificationStatus === 'approved') {
-            await Restaurant.findByIdAndUpdate(restaurantId, { isActive: true });
-        }
-
-        await restaurantDoc.save();
-
-        return res.status(200).json({
-            success: true,
-            message: `Restaurant has been successfully ${verificationStatus}.`,
-            data: restaurantDoc,
-        });
-
     } catch (error) {
-        logger.error("Error verifying restaurant", { error: error.message, restaurantId });
+        await session.abortTransaction();
+        logger.error("Error verifying restaurant", { error: error.message, restaurantId: req.params.restaurantId });
         next(error);
+    } finally {
+        session.endSession();
     }
 };
 
@@ -178,8 +208,6 @@ export const toggleRestaurantActiveStatus = async (req, res, next) => {
         next(error);
     }
 };
-
-// --- NEW FUNCTIONS FOR FEATURE-002 ---
 
 /**
  * @description Get a paginated list of all users (customers, delivery partners).
